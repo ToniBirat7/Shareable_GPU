@@ -7,20 +7,25 @@ import torch
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from hivemind import DHT, use_hivemind_log_handler
+from hivemind import DHT
 from pydantic import BaseModel
 
 # Setup Logging
-use_hivemind_log_handler("https://w3.hivemind.learningathome.site/api/", "my_dscp_node")
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dscp_daemon")
-logger.setLevel(logging.INFO)
+
+
+import argparse
 
 # Configuration
-INITIAL_PEERS = [
-    # TODO: Add stable bootstrap peers or discovery logic
-    # '/ip4/123.123.123.123/tcp/31337/p2p/Qm...'
-]
-Using_Hivemind_Public = True # Set to False for private mesh
+def parse_args():
+    parser = argparse.ArgumentParser(description="DSCP Compute Daemon")
+    parser.add_argument("--peers", type=str, nargs="*", help="Bootstrap peer addresses")
+    parser.add_argument("--port", type=int, default=31337, help="Port to listen on")
+    parser.add_argument("--api_port", type=int, default=8000, help="Port for the API server")
+    return parser.parse_args()
+
+args = parse_args()
 
 class GlobalState:
     dht: Optional[DHT] = None
@@ -46,15 +51,20 @@ async def lifespan(app: FastAPI):
     # Initialize DHT
     logger.info("Connecting to DHT Swarm...")
     try:
-        initial_peers = INITIAL_PEERS if INITIAL_PEERS else None
-        # If no peers and strictly private, we start as a bootstrap node
+        # Use provided peers or default to None (standalone/public)
+        initial_peers = args.peers if args.peers else None
+        
         state.dht = DHT(
             start=True,
             initial_peers=initial_peers,
-            host_maddrs=["/ip4/0.0.0.0/tcp/31337", "/ip4/0.0.0.0/udp/31337/quic"]
+            host_maddrs=[f"/ip4/0.0.0.0/tcp/{args.port}", f"/ip4/0.0.0.0/udp/{args.port}/quic"]
         )
         state.peer_id = str(state.dht.peer_id)
+        
+        # Log reachable addresses so friend can copy them
         logger.info(f"DHT Connected. Peer ID: {state.peer_id}")
+        logger.info(f"Visible multiaddresses: {state.dht.get_visible_maddrs()}")
+        
     except Exception as e:
         logger.error(f"Failed to initialize DHT: {e}")
 
@@ -86,7 +96,7 @@ async def get_status():
     visible_count = 0
     if state.dht:
         try:
-            # Quick check for visible peers (may be blocking, careful)
+            # Check for visible peers (active connections)
             visible_count = len(state.dht.get_visible_maddrs()) 
         except:
             visible_count = -1
@@ -99,5 +109,6 @@ async def get_status():
     )
 
 if __name__ == "__main__":
-    uvicorn.run("engine:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("engine:app", host="0.0.0.0", port=args.api_port, reload=True)
+
 

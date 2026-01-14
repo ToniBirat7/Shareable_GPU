@@ -13,15 +13,32 @@ The Decentralized Shareable Compute Protocol (DSCP) is an open-source initiative
 - [Contributing](#contributing)
 - [License](#license)
 
-## Architecture Overview
+## Internal Architecture
 
-The platform operates on a decentralized Client-Daemon model:
+The DSCP platform utilizes a decentralized architecture designed for asynchronous, distributed training of large-scale models across heterogeneous consumer hardware.
 
-1.  **Compute Daemon (Backend):** A Python-based service running on Windows Subsystem for Linux (WSL 2). It leverages the **Hivemind** library to participate in a Distributed Hash Table (DHT), managing peer discovery, gradient synchronization, and ensuring fault tolerance against node dropouts.
-2.  **Dashboard (Frontend):** A Next.js web application providing real-time visualization of the swarm status, local GPU metrics (VRAM, Utilization, Temperature), and wallet management for contribution rewards.
-3.  **Communication Layer:** 
-    -   **P2P:** Nodes communicate directly via libp2p for training data exchange.
-    -   **Local:** The Dashboard communicates with the Daemon via a RESTful API (FastAPI) over localhost.
+### 1. Peer-to-Peer (P2P) Networking Core
+The system is built upon **Hivemind**, which utilizes **libp2p** for its underlying networking stack. 
+- **Distributed Hash Table (DHT):** Nodes participate in a Kademlia-based DHT. This decentralized ledger tracks the location of all participants, their current computational state, and the training parameters they are managing.
+- **Multi-protocol Support:** Nodes communicate over TCP/UDP and utilize QUIC for efficient, low-latency data transfer.
+
+### 2. Computational Coordination (Swarm Parallelism)
+The DSCP network bypasses the limitations of traditional Data Parallelism (which requires high bandwidth) by employing **Swarm Parallelism**:
+- **Gradient Averaging:** Peers compute gradients locally on their shard of the data. These gradients are synchronized asynchronously across the DHT using a decentralized averager.
+- **Fault Tolerance:** If a peer disconnects, the DHT automatically re-routes tasks. This is critical for consumer environments (e.g., a friend closing their laptop).
+
+### 3. Local Swarm Coordination (LAN)
+When two nodes are on the same local network (LAN):
+- **Peer Discovery:** The primary node initializes a listener on the DHT. The secondary node joins the swarm by connecting to the primary node's local IP address (`192.168.x.x`).
+- **High Bandwidth Exchange:** Because the nodes are on the same LAN, gradient exchange occurs at gigabit speeds (1Gbps+), significantly increasing training efficiency compared to Wide Area Network (WAN) coordination.
+- **Local Dashboard Access:** The local frontend dashboard (Next.js) polls the daemon's FastAPI server (`localhost:8000`) for real-time hardware metrics and DHT peer data.
+
+## Implementation Details: Multi-Node Configuration
+
+To enable peer communication on the same network:
+1.  **Listener Configuration:** The primary node daemon must listen on all interfaces (`0.0.0.0`).
+2.  **Bootstrap Address:** The primary node logs its "Visible multiaddresses". The secondary peer uses this address to target the primary node's internal IP.
+3.  **Firewall Transparency:** Windows Defender or local firewalls must permit inbound and outbound traffic on Port 31337 (DHT) and Port 8000 (API, optional).
 
 ## System Requirements
 
