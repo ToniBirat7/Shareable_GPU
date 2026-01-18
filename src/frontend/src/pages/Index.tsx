@@ -5,8 +5,9 @@ import { SwarmMetricsCard } from "@/components/dashboard/SwarmMetricsCard";
 import { PerformanceMetricsPanel } from "@/components/dashboard/PerformanceMetricsPanel";
 import { ComputeActivityCard } from "@/components/dashboard/ComputeActivityCard";
 import { PeerNetworkVisualization } from "@/components/dashboard/PeerNetworkVisualization";
+import { useNodeStatus } from "@/hooks/useNodeStatus";
 
-// Simulated data - in production this would come from your FastAPI backend
+// Simulated loss data generation
 const generateLossData = (steps: number) => {
   const data = [];
   let loss = 2.5;
@@ -17,19 +18,12 @@ const generateLossData = (steps: number) => {
   return data;
 };
 
-const mockPeers = [
-  { id: "1", label: "peer-a1b2", isActive: true },
-  { id: "2", label: "peer-c3d4", isActive: true },
-  { id: "3", label: "peer-e5f6", isActive: false },
-  { id: "4", label: "peer-g7h8", isActive: true },
-  { id: "5", label: "peer-i9j0", isActive: true },
-  { id: "6", label: "peer-k1l2", isActive: false },
-  { id: "7", label: "peer-m3n4", isActive: true },
-  { id: "8", label: "peer-o5p6", isActive: true },
-];
+// Peer visualization will be populated from real backend data when available
 
 const Index = () => {
-  const [isOnline, setIsOnline] = useState(true);
+  // Fetch real node status from backend
+  const { data: nodeStatus, isError, isLoading } = useNodeStatus();
+
   const [isTraining, setIsTraining] = useState(false);
   const [lossData, setLossData] = useState(generateLossData(20));
   const [currentStep, setCurrentStep] = useState(200);
@@ -41,6 +35,9 @@ const Index = () => {
     temperature: 67,
     powerDraw: 142,
   });
+
+  // Determine online status from backend
+  const isOnline = !isError && !isLoading && nodeStatus !== undefined;
 
   // Simulate real-time updates when training
   useEffect(() => {
@@ -88,21 +85,21 @@ const Index = () => {
           {/* Node Identity - 2/3 width on desktop */}
           <div className="lg:col-span-2">
             <NodeIdentityCard
-              peerId="12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X"
-              deviceName="NVIDIA GeForce RTX 3060"
-              accelerationEnabled={true}
-              localIp="192.168.1.105"
-              uptime="4h 23m 17s"
+              peerId={nodeStatus?.peer_id || "Connecting..."}
+              deviceName={nodeStatus?.device || "Loading..."}
+              accelerationEnabled={nodeStatus?.cuda_available ?? false}
+              localIp="N/A"
+              uptime="N/A"
             />
           </div>
 
           {/* Swarm Metrics - 1/3 width on desktop */}
           <SwarmMetricsCard
-            totalPeers={47}
-            directConnections={12}
-            indirectConnections={35}
-            networkHealth={87}
-            dataTransferred="2.4 GB"
+            totalPeers={nodeStatus?.visible_peers || 0}
+            directConnections={nodeStatus?.visible_peers || 0}
+            indirectConnections={0}
+            networkHealth={isOnline ? 100 : 0}
+            dataTransferred="N/A"
           />
         </div>
 
@@ -132,7 +129,7 @@ const Index = () => {
         </div>
 
         {/* Peer Network Visualization */}
-        <PeerNetworkVisualization peers={mockPeers} />
+        <PeerNetworkVisualization peers={[]} />
       </div>
     </div>
   );
