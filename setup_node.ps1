@@ -31,58 +31,72 @@ if ($null -eq $wslCheck) {
     throw "WSL 2 is not enabled. Please enable WSL 2 and try again."
 }
 
-# 2. Download Ubuntu RootFS
+# 2. Check for existing RootFS to save time
 $distroName = "Ubuntu_Shareable_GPU"
 $zipPath = Join-Path $InstallDir "ubuntu.zip"
 $extractPath = Join-Path $InstallDir "extracted"
 
-Write-Host "Downloading Ubuntu 22.04 LTS RootFS (~1GB)..." -ForegroundColor Yellow
-$ubuntuUrl = "https://aka.ms/wslubuntu2204"
-
-$maxRetries = 3
-$retryCount = 0
-$done = $false
-
-while (-not $done -and $retryCount -lt $maxRetries) {
-    try {
-        if (Get-Command "curl.exe" -ErrorAction SilentlyContinue) {
-            Write-Host "Using curl for download..." -ForegroundColor Cyan
-            curl.exe -L $ubuntuUrl -o $zipPath --retry 3 --connect-timeout 30
-        }
-        else {
-            Write-Host "Using Invoke-WebRequest..." -ForegroundColor Cyan
-            Invoke-WebRequest -Uri $ubuntuUrl -OutFile $zipPath -TimeoutSec 600
-        }
-        $done = $true
-    }
-    catch {
-        $retryCount++
-        Write-Host "Download failed. Retry $retryCount/$maxRetries..." -ForegroundColor Red
-        Start-Sleep -Seconds 5
-    }
-}
-
-if (-not $done) {
-    throw "Download failed after $maxRetries attempts. Please check your internet connection."
-}
-
-Write-Host "Extracting distribution files..." -ForegroundColor Yellow
-if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
-Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-
-# The aka.ms link downloads a package that often contains another .appx inside.
-$innerAppx = Get-ChildItem -Path $extractPath -Filter "*x64.appx" | Select-Object -First 1
-if ($innerAppx) {
-    Write-Host "Extracting inner architecture-specific bundle..." -ForegroundColor Yellow
-    $innerZip = Join-Path $extractPath "inner.zip"
-    Rename-Item -Path $innerAppx.FullName -NewName "inner.zip"
-    Expand-Archive -Path $innerZip -DestinationPath $extractPath -Force
-}
-
-$rootfsPath = Get-ChildItem -Path $extractPath -Filter "install.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
+Write-Host "Searching for existing distribution files in $InstallDir..." -ForegroundColor Yellow
+$rootfsPath = Get-ChildItem -Path $InstallDir -Filter "install.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
 
 if (-not $rootfsPath) {
-    throw "Could not find install.tar.gz in the downloaded package. Please check the download."
+    # Fallback search for common names
+    $rootfsPath = Get-ChildItem -Path $InstallDir -Filter "ubuntu-rootfs.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
+}
+
+if ($rootfsPath) {
+    Write-Host "Found existing RootFS: $rootfsPath" -ForegroundColor Green
+    Write-Host "Skipping download and extraction." -ForegroundColor Green
+}
+else {
+    Write-Host "Downloading Ubuntu 22.04 LTS RootFS (~1GB)..." -ForegroundColor Yellow
+    $ubuntuUrl = "https://aka.ms/wslubuntu2204"
+
+    $maxRetries = 3
+    $retryCount = 0
+    $done = $false
+
+    while (-not $done -and $retryCount -lt $maxRetries) {
+        try {
+            if (Get-Command "curl.exe" -ErrorAction SilentlyContinue) {
+                Write-Host "Using curl for download..." -ForegroundColor Cyan
+                curl.exe -L $ubuntuUrl -o $zipPath --retry 3 --connect-timeout 30
+            }
+            else {
+                Write-Host "Using Invoke-WebRequest..." -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $ubuntuUrl -OutFile $zipPath -TimeoutSec 600
+            }
+            $done = $true
+        }
+        catch {
+            $retryCount++
+            Write-Host "Download failed. Retry $retryCount/$maxRetries..." -ForegroundColor Red
+            Start-Sleep -Seconds 5
+        }
+    }
+
+    if (-not $done) {
+        throw "Download failed after $maxRetries attempts. Please check your internet connection."
+    }
+
+    Write-Host "Extracting distribution files..." -ForegroundColor Yellow
+    if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
+    Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+    # The aka.ms link downloads a package that often contains another .appx inside.
+    $innerAppx = Get-ChildItem -Path $extractPath -Filter "*x64.appx" | Select-Object -First 1
+    if ($innerAppx) {
+        Write-Host "Extracting inner architecture-specific bundle..." -ForegroundColor Yellow
+        $innerZip = Join-Path $extractPath "inner.zip"
+        Rename-Item -Path $innerAppx.FullName -NewName "inner.zip"
+        Expand-Archive -Path $innerZip -DestinationPath $extractPath -Force
+    }
+
+    $rootfsPath = Get-ChildItem -Path $extractPath -Filter "install.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
+
+    if (-not $rootfsPath) {
+        throw "Could not find install.tar.gz in the downloaded package. Please check the download."
+    }
 }
 
 # 3. Import WSL Distribution
