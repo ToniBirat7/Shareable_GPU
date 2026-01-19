@@ -36,9 +36,35 @@ $distroName = "Ubuntu_Shareable_GPU"
 $zipPath = Join-Path $InstallDir "ubuntu.zip"
 $extractPath = Join-Path $InstallDir "extracted"
 
-Write-Host "Downloading Ubuntu 22.04 LTS RootFS..." -ForegroundColor Yellow
+Write-Host "Downloading Ubuntu 22.04 LTS RootFS (~1GB)..." -ForegroundColor Yellow
 $ubuntuUrl = "https://aka.ms/wslubuntu2204"
-Invoke-WebRequest -Uri $ubuntuUrl -OutFile $zipPath
+
+$maxRetries = 3
+$retryCount = 0
+$done = $false
+
+while (-not $done -and $retryCount -lt $maxRetries) {
+    try {
+        if (Get-Command "curl.exe" -ErrorAction SilentlyContinue) {
+            Write-Host "Using curl for download..." -ForegroundColor Cyan
+            curl.exe -L $ubuntuUrl -o $zipPath --retry 3 --connect-timeout 30
+        }
+        else {
+            Write-Host "Using Invoke-WebRequest..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $ubuntuUrl -OutFile $zipPath -TimeoutSec 600
+        }
+        $done = $true
+    }
+    catch {
+        $retryCount++
+        Write-Host "Download failed. Retry $retryCount/$maxRetries..." -ForegroundColor Red
+        Start-Sleep -Seconds 5
+    }
+}
+
+if (-not $done) {
+    throw "Download failed after $maxRetries attempts. Please check your internet connection."
+}
 
 Write-Host "Extracting distribution files..." -ForegroundColor Yellow
 if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
