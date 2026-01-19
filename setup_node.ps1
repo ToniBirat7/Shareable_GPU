@@ -33,26 +33,45 @@ if ($null -eq $wslCheck) {
 
 # 2. Download Ubuntu RootFS
 $distroName = "Ubuntu_Shareable_GPU"
-$zipPath = Join-Path $InstallDir "ubuntu.zip"
+$zipPath = Join-Path $InstallDir "ubuntu.appx"
 $extractPath = Join-Path $InstallDir "extracted"
-$rootfsPath = Join-Path $extractPath "install.tar.gz"
 
 Write-Host "Downloading Ubuntu 22.04 LTS RootFS..." -ForegroundColor Yellow
 $ubuntuUrl = "https://aka.ms/wslubuntu2204"
 Invoke-WebRequest -Uri $ubuntuUrl -OutFile $zipPath
 
 Write-Host "Extracting distribution files..." -ForegroundColor Yellow
+if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
 Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+# The aka.ms link downloads an .appx which is a zip. 
+# Sometimes it contains another .appx inside (e.g. Ubuntu_2204.1.7.0_x64.appx).
+$innerAppx = Get-ChildItem -Path $extractPath -Filter "*x64.appx" | Select-Object -First 1
+if ($innerAppx) {
+    Write-Host "Extracting inner architecture-specific bundle..." -ForegroundColor Yellow
+    Expand-Archive -Path $innerAppx.FullName -DestinationPath $extractPath -Force
+}
+
+$rootfsPath = Get-ChildItem -Path $extractPath -Filter "install.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
+
+if (-not $rootfsPath) {
+    throw "Could not find install.tar.gz in the downloaded package. Please check the download."
+}
 
 # 3. Import WSL Distribution
 Write-Host "Importing distribution to $InstallDir..." -ForegroundColor Yellow
 $vhdPath = Join-Path $InstallDir $distroName
-wsl --import $distroName $vhdPath $rootfsPath --version 2
+if (!(wsl --list --quiet | Select-String -Pattern "^$distroName$")) {
+    wsl --import $distroName $vhdPath $rootfsPath --version 2
+} else {
+    Write-Host "Distribution '$distroName' already exists. Skipping import." -ForegroundColor Cyan
+}
 
 # 4. Internal Setup (Miniconda & Libraries)
 Write-Host "Configuring Linux Environment (Miniconda/PyTorch)..." -ForegroundColor Yellow
 
 $setupCmd = @"
+set -e
 # 1. Update and Base Tools
 apt-get update && apt-get install -y wget curl git
 
@@ -65,8 +84,8 @@ fi
 
 source "`$HOME/miniconda/bin/activate"
 conda config --set auto_update_conda False
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+# Accept ToS for standard channels
+conda config --set always_yes yes
 
 # 3. Create Environment
 if ! conda info --envs | grep -q shareable_gpu; then
@@ -79,7 +98,11 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install hivemind fastapi uvicorn
 "@
 
-wsl -d $distroName --exec bash -c $setupCmd
+# Fix CRLF for Bash
+$setupCmd = $setupCmd -replace "`r`n", "`n"
+
+Write-Host "Executing setup script inside WSL... This may take several minutes." -ForegroundColor Cyan
+wsl -d $distroName --u root bash -c $setupCmd
 
 # 5. Cleanup
 Write-Host "Cleaning up temporary files..." -ForegroundColor Yellow
