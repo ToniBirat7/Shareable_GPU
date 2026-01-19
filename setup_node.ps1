@@ -127,7 +127,8 @@ fi
 source "`$HOME/miniconda/bin/activate"
 conda config --set auto_update_conda False
 # Accept ToS for standard channels
-conda config --set always_yes yes
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
 # 3. Create Environment
 if ! conda info --envs | grep -q shareable_gpu; then
