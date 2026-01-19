@@ -9,7 +9,7 @@
 #>
 
 param (
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$InstallDir
 )
 
@@ -33,7 +33,7 @@ if ($null -eq $wslCheck) {
 
 # 2. Download Ubuntu RootFS
 $distroName = "Ubuntu_Shareable_GPU"
-$zipPath = Join-Path $InstallDir "ubuntu.appx"
+$zipPath = Join-Path $InstallDir "ubuntu.zip"
 $extractPath = Join-Path $InstallDir "extracted"
 
 Write-Host "Downloading Ubuntu 22.04 LTS RootFS..." -ForegroundColor Yellow
@@ -44,12 +44,13 @@ Write-Host "Extracting distribution files..." -ForegroundColor Yellow
 if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
 Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
 
-# The aka.ms link downloads an .appx which is a zip. 
-# Sometimes it contains another .appx inside (e.g. Ubuntu_2204.1.7.0_x64.appx).
+# The aka.ms link downloads a package that often contains another .appx inside.
 $innerAppx = Get-ChildItem -Path $extractPath -Filter "*x64.appx" | Select-Object -First 1
 if ($innerAppx) {
     Write-Host "Extracting inner architecture-specific bundle..." -ForegroundColor Yellow
-    Expand-Archive -Path $innerAppx.FullName -DestinationPath $extractPath -Force
+    $innerZip = Join-Path $extractPath "inner.zip"
+    Rename-Item -Path $innerAppx.FullName -NewName "inner.zip"
+    Expand-Archive -Path $innerZip -DestinationPath $extractPath -Force
 }
 
 $rootfsPath = Get-ChildItem -Path $extractPath -Filter "install.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
@@ -63,7 +64,8 @@ Write-Host "Importing distribution to $InstallDir..." -ForegroundColor Yellow
 $vhdPath = Join-Path $InstallDir $distroName
 if (!(wsl --list --quiet | Select-String -Pattern "^$distroName$")) {
     wsl --import $distroName $vhdPath $rootfsPath --version 2
-} else {
+}
+else {
     Write-Host "Distribution '$distroName' already exists. Skipping import." -ForegroundColor Cyan
 }
 
