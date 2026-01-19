@@ -51,7 +51,7 @@ if ($SourceDir) { $searchPaths += $SourceDir }
 
 foreach ($path in $searchPaths) {
     if (Test-Path $path) {
-        Write-Object "Searching in $path..."
+        Write-Host "Searching in $path..."
         $found = Get-ChildItem -Path $path -Filter "install.tar.gz" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
         if (-not $found) {
             $found = Get-ChildItem -Path $path -Filter "ubuntu-rootfs.tar.gz" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
