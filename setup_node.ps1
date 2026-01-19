@@ -5,12 +5,18 @@
     configures Miniconda, and installs all required ML libraries.
 
 .PARAMETER InstallDir
-    The absolute path to the directory where the WSL distribution should be installed (e.g., F:\WSL).
+    The absolute path to the directory where the WSL distribution should be installed (e.g., H:\WSL_DSCP).
+
+.PARAMETER SourceDir
+    Optional: The path to a folder containing existing Ubuntu rootfs files (e.g., F:\WSL) to avoid downloading.
 #>
 
 param (
     [Parameter(Mandatory = $true)]
-    [string]$InstallDir
+    [string]$InstallDir,
+
+    [Parameter(Mandatory = $false)]
+    [string]$SourceDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,19 +42,40 @@ $distroName = "Ubuntu_Shareable_GPU"
 $zipPath = Join-Path $InstallDir "ubuntu.zip"
 $extractPath = Join-Path $InstallDir "extracted"
 
-Write-Host "Searching for existing distribution files in $InstallDir..." -ForegroundColor Yellow
-$rootfsPath = Get-ChildItem -Path $InstallDir -Filter "install.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
+Write-Host "Searching for distribution files..." -ForegroundColor Yellow
+$rootfsPath = $null
 
-if (-not $rootfsPath) {
-    # Fallback search for common names
-    $rootfsPath = Get-ChildItem -Path $InstallDir -Filter "ubuntu-rootfs.tar.gz" -Recurse | Select-Object -First 1 | ForEach-Object { $_.FullName }
+# Search Priority: 1. InstallDir (local) 2. SourceDir (external)
+$searchPaths = @($InstallDir)
+if ($SourceDir) { $searchPaths += $SourceDir }
+
+foreach ($path in $searchPaths) {
+    if (Test-Path $path) {
+        Write-Object "Searching in $path..."
+        $found = Get-ChildItem -Path $path -Filter "install.tar.gz" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $found) {
+            $found = Get-ChildItem -Path $path -Filter "ubuntu-rootfs.tar.gz" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        }
+        
+        if ($found) {
+            if ($path -eq $SourceDir) {
+                Write-Host "Found file on external drive: $($found.FullName)" -ForegroundColor Green
+                Write-Host "Copying to local installation directory to ensure stability..." -ForegroundColor Cyan
+                $localTarPath = Join-Path $InstallDir "install.tar.gz"
+                Copy-Item -Path $found.FullName -Destination $localTarPath -Force
+                $rootfsPath = $localTarPath
+            } else {
+                $rootfsPath = $found.FullName
+            }
+            break
+        }
+    }
 }
 
 if ($rootfsPath) {
-    Write-Host "Found existing RootFS: $rootfsPath" -ForegroundColor Green
-    Write-Host "Skipping download and extraction." -ForegroundColor Green
-}
-else {
+    Write-Host "Using RootFS: $rootfsPath" -ForegroundColor Green
+    Write-Host "Skipping download." -ForegroundColor Green
+} else {
     Write-Host "Downloading Ubuntu 22.04 LTS RootFS (~1GB)..." -ForegroundColor Yellow
     $ubuntuUrl = "https://aka.ms/wslubuntu2204"
 
