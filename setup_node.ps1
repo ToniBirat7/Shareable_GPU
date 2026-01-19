@@ -144,12 +144,12 @@ pip install hivemind fastapi uvicorn
 $setupCmd = $setupCmd -replace "`r`n", "`n"
 
 Write-Host "Executing setup script inside WSL... This may take several minutes." -ForegroundColor Cyan
-wsl -d $distroName --u root bash -c $setupCmd
+wsl -d $distroName --user root bash -c $setupCmd
 
 # 5. Cleanup
 Write-Host "Cleaning up temporary files..." -ForegroundColor Yellow
-Remove-Item $zipPath -Force
-Remove-Item $extractPath -Recurse -Force
+if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
 
 Write-Host "----------------------------------------------------" -ForegroundColor Green
 Write-Host "SETUP COMPLETE!" -ForegroundColor Green
