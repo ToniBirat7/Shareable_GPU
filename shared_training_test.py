@@ -19,10 +19,22 @@ def run_training_test():
     print("\n" + "="*60)
     print("✅ DHT STARTED! SHARE THIS COMMAND WITH YOUR FRIEND:")
     print("="*60)
-    # Filter for non-local IPs to be helpful
+    
+    found_any = False
     for addr in visible_addrs:
-        if "127.0.0.1" not in str(addr) and "172." not in str(addr):
-             print(f'python shared_training_test.py --peers "{addr}"')
+        addr_str = str(addr)
+        if "127.0.0.1" not in addr_str:
+             print(f'python shared_training_test.py --peers "{addr_str}"')
+             found_any = True
+             
+             # Hint for WSL users
+             if "172." in addr_str:
+                 print(f"   (If 172.x doesn't work, replace it with your Windows LAN IP: 192.168.1.100)")
+                 
+    if not found_any:
+        print("NOTE: No public address found. Use your Windows LAN IP manually:")
+        print('/ip4/192.168.1.100/tcp/[PORT]/p2p/' + str(dht.peer_id))
+        
     print("="*60 + "\n")
 
     # 2. Simple Linear Model
@@ -58,7 +70,7 @@ def run_training_test():
             collaborative_optimizer.step()
             collaborative_optimizer.zero_grad()
             
-            print(f"Step {i} completed. Loss: {loss.item():.4f} | Peers contributing: {collaborative_optimizer.num_peers}")
+            print(f"Step {i} completed. Loss: {loss.item():.4f}")
             time.sleep(1)
             
     except KeyboardInterrupt:
