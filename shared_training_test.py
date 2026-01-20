@@ -11,8 +11,19 @@ def run_training_test():
 
     # 1. Initialize DHT
     print("Connecting to DHT...")
-    dht = hivemind.DHT(initial_peers=args.peers, start=True)
+    dht = hivemind.DHT(initial_peers=args.peers, start=True, host_maddrs=["/ip4/0.0.0.0/tcp/0"]) 
     print(f"Connected to DHT as {dht.peer_id}")
+    
+    # Print the invite link for others
+    visible_addrs = dht.get_visible_maddrs()
+    print("\n" + "="*60)
+    print("✅ DHT STARTED! SHARE THIS COMMAND WITH YOUR FRIEND:")
+    print("="*60)
+    # Filter for non-local IPs to be helpful
+    for addr in visible_addrs:
+        if "127.0.0.1" not in str(addr) and "172." not in str(addr):
+             print(f'python shared_training_test.py --peers "{addr}"')
+    print("="*60 + "\n")
 
     # 2. Simple Linear Model
     model = nn.Linear(32, 1)
