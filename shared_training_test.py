@@ -37,6 +37,10 @@ def run_training_test():
         print(f'/ip4/192.168.1.100/tcp/31337/p2p/{dht.peer_id}')
         
     print("="*60 + "\n")
+    
+    print(" >>> PAUSED: The DHT is now online and waiting.")
+    print(" >>> Ask your friend to run the command above.")
+    input(" >>> Once they are connected, Press ENTER here to start the training loop...")
 
     # 2. Simple Linear Model
     model = nn.Linear(32, 1)
