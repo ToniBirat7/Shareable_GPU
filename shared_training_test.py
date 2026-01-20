@@ -10,14 +10,15 @@ def run_training_test():
     args = parser.parse_args()
 
     # 1. Initialize DHT
-    print("Connecting to DHT...")
-    dht = hivemind.DHT(initial_peers=args.peers, start=True, host_maddrs=["/ip4/0.0.0.0/tcp/0"]) 
+    print("Connecting to DHT on FIXED PORT 31337...")
+    # We enforce port 31337 so the Windows Bridge/Firewall rules always work
+    dht = hivemind.DHT(initial_peers=args.peers, start=True, host_maddrs=["/ip4/0.0.0.0/tcp/31337"]) 
     print(f"Connected to DHT as {dht.peer_id}")
     
     # Print the invite link for others
     visible_addrs = dht.get_visible_maddrs()
     print("\n" + "="*60)
-    print("✅ DHT STARTED! SHARE THIS COMMAND WITH YOUR FRIEND:")
+    print("DHT STARTED! SHARE THIS COMMAND WITH YOUR FRIEND:")
     print("="*60)
     
     found_any = False
@@ -33,7 +34,7 @@ def run_training_test():
                  
     if not found_any:
         print("NOTE: No public address found. Use your Windows LAN IP manually:")
-        print('/ip4/192.168.1.100/tcp/[PORT]/p2p/' + str(dht.peer_id))
+        print(f'/ip4/192.168.1.100/tcp/31337/p2p/{dht.peer_id}')
         
     print("="*60 + "\n")
 
