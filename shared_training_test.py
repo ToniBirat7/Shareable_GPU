@@ -18,14 +18,15 @@ def run_training_test():
     model = nn.Linear(32, 1)
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
-    # 3. Collaborative Optimizer (The magic that shares the load)
-    collaborative_optimizer = hivemind.CollaborativeOptimizer(
-        adaptive_optimizer=optimizer,
+    # 3. Distributed Optimizer (Collaboratively trains across peers)
+    collaborative_optimizer = hivemind.Optimizer(
         dht=dht,
-        prefix="shared_test_run",
-        target_batch_size=64, # Small for testing
+        run_id="shared_test_run",
+        optimizer=optimizer,
+        target_batch_size=64, # Collect 64 samples across swarm before stepping
         batch_size_per_step=8,
-        start=True
+        matchmaking_time=5.0, # Time to wait for other peers
+        scheduler=None,
     )
 
     print("Beginning Training Loop. Wait for other peers to join...")
